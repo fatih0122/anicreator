@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+gunicorn
+python-dotenv
+python-multipart
+openai
+requests
+aiohttp
+httpx
+Pillow
+boto3
+celery[redis]
+redis

@@ -1,0 +1,116 @@
+/* Plyr Custom Purple Theme - Override default blue (#00b3ff) with purple #6D14EC */
+/* Using !important to ensure these styles override Plyr's defaults */
+
+/* ===== PROGRESS BAR ===== */
+/* The filled portion of the progress bar */
+.plyr--full-ui input[type='range'] {
+  color: #6D14EC !important;
+}
+
+.plyr__progress input[type='range'] {
+  color: #6D14EC !important;
+}
+
+/* ===== VOLUME SLIDER ===== */
+.plyr--audio .plyr__controls .plyr__volume input[type='range'],
+.plyr--video .plyr__controls .plyr__volume input[type='range'] {
+  color: #6D14EC !important;
+}
+
+/* ===== LARGE PLAY BUTTON (center) ===== */
+.plyr--video .plyr__control--overlaid {
+  background: rgba(109, 20, 236, 0.9) !important;
+}
+
+.plyr--video .plyr__control--overlaid:hover {
+  background: #6D14EC !important;
+}
+
+/* ===== CONTROL BUTTONS ===== */
+.plyr--video .plyr__control.plyr__tab-focus,
+.plyr--video .plyr__control:hover,
+.plyr--video .plyr__control[aria-expanded='true'] {
+  background: #6D14EC !important;
+}
+
+.plyr__control--overlaid svg {
+  fill: white !important;
+}
+
+/* ===== TOOLTIPS ===== */
+.plyr__tooltip {
+  background: #6D14EC !important;
+  color: white !important;
+}
+
+/* ===== MENU HIGHLIGHTS ===== */
+.plyr__menu__container .plyr__control[role='menuitemradio'][aria-checked='true']::before {
+  background: #6D14EC !important;
+}
+
+/* ===== LOADING/BUFFERING ===== */
+.plyr__progress__buffer,
+.plyr--loading .plyr__progress__buffer {
+  color: rgba(109, 20, 236, 0.25) !important;
+}
+
+/* ===== FOCUS RINGS ===== */
+.plyr__control:focus-visible {
+  outline: 2px solid #6D14EC !important;
+  outline-offset: 2px;
+}
+
+/* ===== SLIDER THUMBS (the draggable circles) ===== */
+.plyr--full-ui input[type='range']::-webkit-slider-thumb {
+  background: #6D14EC !important;
+  box-shadow: 0 1px 1px rgba(109, 20, 236, 0.15), 0 0 0 1px rgba(109, 20, 236, 0.2) !important;
+}
+
+.plyr--full-ui input[type='range']::-moz-range-thumb {
+  background: #6D14EC !important;
+  box-shadow: 0 1px 1px rgba(109, 20, 236, 0.15), 0 0 0 1px rgba(109, 20, 236, 0.2) !important;
+}
+
+.plyr--full-ui input[type='range']::-ms-thumb {
+  background: #6D14EC !important;
+  box-shadow: 0 1px 1px rgba(109, 20, 236, 0.15), 0 0 0 1px rgba(109, 20, 236, 0.2) !important;
+}
+
+/* Active state when dragging */
+.plyr--full-ui input[type='range']:active::-webkit-slider-thumb {
+  box-shadow: 0 1px 1px rgba(109, 20, 236, 0.15), 0 0 0 1px rgba(109, 20, 236, 0.2), 0 0 0 3px rgba(109, 20, 236, 0.15) !important;
+}
+
+.plyr--full-ui input[type='range']:active::-moz-range-thumb {
+  box-shadow: 0 1px 1px rgba(109, 20, 236, 0.15), 0 0 0 1px rgba(109, 20, 236, 0.2), 0 0 0 3px rgba(109, 20, 236, 0.15) !important;
+}
+
+.plyr--full-ui input[type='range']:active::-ms-thumb {
+  box-shadow: 0 1px 1px rgba(109, 20, 236, 0.15), 0 0 0 1px rgba(109, 20, 236, 0.2), 0 0 0 3px rgba(109, 20, 236, 0.15) !important;
+}
+
+/* ===== CAPTIONS STYLING ===== */
+.plyr__captions {
+  font-size: 1.5rem;
+  color: white;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* ===== VIDEO SIZING - Fill container without black bars ===== */
+.plyr__video-wrapper video {
+  object-fit: cover !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0.75rem !important; /* Match Tailwind's rounded-xl */
+}
+
+/* Ensure the video wrapper also respects rounded corners */
+.plyr__video-wrapper {
+  border-radius: 0.75rem !important;
+  overflow: hidden !important;
+}
+
+/* Ensure the poster (thumbnail) also has rounded corners */
+.plyr__poster {
+  border-radius: 0.75rem !important;
+}
