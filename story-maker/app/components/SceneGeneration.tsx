@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Pause, RefreshCw, Sparkles, CheckCircle2, Loader2, Video, ChevronRight, Download, AlertCircle, Home } from 'lucide-react';
+import { Play, Pause, RefreshCw, Sparkles, CheckCircle2, Loader2, Video, ChevronRight, ChevronLeft, Download, AlertCircle, Home } from 'lucide-react';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -64,6 +64,57 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
     router.push('/create/start');
   };
 
+  // Handler for explicit regeneration when inputs have changed
+  const handleRegenerateStory = () => {
+    console.log('🔄 User requested regeneration - clearing content and regenerating');
+
+    // Generate new signature from current inputs
+    const currentSignature = JSON.stringify({
+      characterName: story.characterName,
+      characterType: story.characterType,
+      personality: story.personality,
+      characterDescription: story.characterDescription,
+      characterPrompt: story.characterPrompt,
+      characterImageUrl: story.characterImageUrl,
+      selectedStyle: story.selectedStyle,
+      selectedThemes: story.selectedThemes,
+      customTheme: story.customTheme,
+      sceneCount: story.sceneCount,
+    });
+
+    // Clear all generated content
+    story.clearGeneratedContent();
+
+    // Reset local state
+    setScenes([]);
+    setScriptGenerated(false);
+    setIsGeneratingScript(true);
+    setCompletedImagesCount(0);
+    setCompletedNarrationsCount(0);
+    setIsGeneratingImages(false);
+    setIsGeneratingNarrations(false);
+    setNarrationsGenerated(false);
+    setAreVideoPromptsReady(false);
+    hasGeneratedRef.current = false;
+    imagesGeneratedRef.current = false;
+    narrationsGeneratedRef.current = false;
+
+    // Update the signature and clear change flag
+    story.setStorySignature(currentSignature);
+    setHasInputChanges(false);
+
+    // Trigger regeneration
+    generateScript();
+  };
+
+  // Handler to dismiss the change warning and keep existing content
+  const handleKeepExistingContent = () => {
+    console.log('📌 User chose to keep existing content');
+    setHasInputChanges(false);
+    // Note: The signature remains unchanged, so if user goes back and returns,
+    // we won't show the warning again unless they make MORE changes
+  };
+
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [completedImagesCount, setCompletedImagesCount] = useState(0);
   const [completedNarrationsCount, setCompletedNarrationsCount] = useState(0);
@@ -89,6 +140,9 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
   const [isGeneratingVideoPrompts, setIsGeneratingVideoPrompts] = useState(false);
   const [areVideoPromptsReady, setAreVideoPromptsReady] = useState(false);
 
+  // Track if inputs have changed since content was generated (for explicit regeneration)
+  const [hasInputChanges, setHasInputChanges] = useState(false);
+
   // Fetch voice name on mount
   useEffect(() => {
     const fetchVoiceName = async () => {
@@ -107,8 +161,14 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
     fetchVoiceName();
   }, [story.narrationVoice]);
 
-  // Check for input changes and invalidate cached content if needed
+  // Check for input changes - NO AUTO-CLEAR, just track changes for explicit regeneration
   useEffect(() => {
+    // SKIP signature check during project load - the signature was set by loadFromProject
+    if (story.isLoadingProject) {
+      console.log('⏸️ Skipping signature check - project is loading');
+      return;
+    }
+
     // Generate a signature from the current character inputs
     const currentSignature = JSON.stringify({
       characterName: story.characterName,
@@ -123,25 +183,18 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
       sceneCount: story.sceneCount,
     });
 
-    // If signature exists and is different from current inputs, clear generated content
+    // If signature exists and is different from current inputs, MARK as changed (don't auto-clear!)
     if (story.storySignature && story.storySignature !== currentSignature) {
-      console.log('🔄 Character inputs changed, clearing generated content');
-      story.clearGeneratedContent();
-      // Reset local state as well
-      setScenes([]);
-      setScriptGenerated(false);
-      setIsGeneratingScript(true);
-      setCompletedImagesCount(0);
-      setIsGeneratingImages(false);
-      hasGeneratedRef.current = false;
-      imagesGeneratedRef.current = false;
-      // Update the signature after clearing
+      console.log('⚠️ Character inputs changed - marking for potential regeneration');
+      setHasInputChanges(true);
+      // DON'T auto-clear content! User will explicitly choose to regenerate
+    } else if (!story.storySignature && scenes.length === 0) {
+      // First time with no existing content - set the signature
       story.setStorySignature(currentSignature);
-    } else if (!story.storySignature) {
-      // First time - just set the signature without clearing
-      story.setStorySignature(currentSignature);
+    } else {
+      // Signatures match - no changes
+      setHasInputChanges(false);
     }
-    // If signatures match, do nothing (don't update unnecessarily)
   }, [
     story.characterName,
     story.characterType,
@@ -153,13 +206,25 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
     story.selectedThemes,
     story.customTheme,
     story.sceneCount,
+    story.isLoadingProject,
+    scenes.length,
   ]);
 
-  // Step 1: Generate story script on mount (only if not already loaded from localStorage)
+  // Reset hasGeneratedRef when project changes
+  const prevProjectIdRef = useRef<string | null>(null);
   useEffect(() => {
-    // Check if we already have scenes from localStorage
+    if (story.projectId !== prevProjectIdRef.current) {
+      console.log('🔄 Project changed, resetting hasGeneratedRef');
+      hasGeneratedRef.current = false;
+      prevProjectIdRef.current = story.projectId;
+    }
+  }, [story.projectId]);
+
+  // Step 1: Generate story script on mount (only if not already loaded from database)
+  useEffect(() => {
+    // Check if we already have scenes from database
     if (story.scenes && story.scenes.length > 0 && !hasGeneratedRef.current) {
-      console.log('✅ Scenes already exist in localStorage, loading them');
+      console.log('✅ Scenes already exist in database, loading them');
       console.log('📊 StoryContext state on mount:');
       console.log('  - story.videos.length:', story.videos.length);
       console.log('  - story.videos:', JSON.stringify(story.videos));
@@ -168,14 +233,18 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
 
       // Map existing scenes to the local Scene type with status
       const mappedScenes = story.scenes.map((scene, idx) => {
+        // Find prompts by scene_number, not by array index (prompts are filtered, so indices don't match)
+        const imagePromptData = story.imagePrompts.find(p => p.scene_number === scene.scene_number);
+        const videoPromptData = story.videoPrompts.find(p => p.scene_number === scene.scene_number);
+
         console.log(`  Scene ${idx + 1}: videoUrl=${story.videos[idx] || 'null'}, imageUrl=${story.sceneImages[idx] || 'null'}`);
         return {
           id: String(idx + 1),
           sceneNumber: scene.scene_number,
           sceneType: scene.scene_type,
           text: scene.script_text,
-          imagePrompt: story.imagePrompts[idx]?.prompt || '',
-          videoPrompt: story.videoPrompts[idx]?.prompt || '',
+          imagePrompt: imagePromptData?.prompt || '',
+          videoPrompt: videoPromptData?.prompt || '',
           narrationUrl: scene.narration_url || null,
           narrationStatus: scene.narration_url ? 'ready' as const : 'idle' as const,
           narrationDuration: scene.narration_duration || 0,
@@ -185,14 +254,14 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
           videoUrl: story.videos[idx] || null,
           videoStatus: story.videos[idx] ? 'ready' as const : 'idle' as const,
           isPlayingNarration: false,
-          charactersInScene: story.imagePrompts[idx]?.characters_in_scene || [],
+          charactersInScene: imagePromptData?.characters_in_scene || [],
         };
       });
 
-      // Restore side character images to ref from localStorage
+      // Restore side character images to ref from database
       if (story.sideCharacterImages && story.sideCharacterImages.length > 0) {
         sideCharacterImagesRef.current = story.sideCharacterImages;
-        console.log('✅ Restored side character images from localStorage:', story.sideCharacterImages);
+        console.log('✅ Restored side character images from database:', story.sideCharacterImages);
       }
 
       setScenes(mappedScenes);
@@ -217,7 +286,7 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
         narrationsGeneratedRef.current = true;
         setNarrationsGenerated(true);
         setCompletedNarrationsCount(story.scenes.filter(scene => scene.narration_url).length);
-        console.log('✅ Narrations already exist in localStorage, skipping generation');
+        console.log('✅ Narrations already exist in database, skipping generation');
       }
 
       // If images exist, mark them as generated
@@ -228,7 +297,7 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
       // If video prompts exist, mark them as ready
       if (story.videoPrompts && story.videoPrompts.length > 0 && story.videoPrompts.every(vp => vp?.prompt)) {
         setAreVideoPromptsReady(true);
-        console.log('✅ Video prompts already exist in localStorage, marking as ready');
+        console.log('✅ Video prompts already exist in database, marking as ready');
       }
 
       return;
@@ -239,7 +308,7 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
       hasGeneratedRef.current = true;
       generateScript();
     }
-  }, [story.scenes.length]); // Re-run when scenes are cleared
+  }, [story.scenes.length, story.projectId]); // Re-run when scenes are cleared or project changes
 
   const generateScript = async () => {
     try {
@@ -494,7 +563,7 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
         phonemes: response.narrations[idx].phonemes || null
       }));
       story.setScenes(updatedScenesWithNarrations);
-      console.log('💾 Saved narration URLs and phonemes to StoryContext/localStorage');
+      console.log('💾 Saved narration URLs and phonemes to StoryContext/database');
 
       setCompletedNarrationsCount(response.narrations.filter(n => n.audio_url).length);
       setIsGeneratingNarrations(false);
@@ -1062,7 +1131,7 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
         };
         console.log(`🔍 Before update, scenes[${sceneIndex}].narration_url:`, story.scenes[sceneIndex]?.narration_url);
         story.setScenes(updatedScenes);
-        console.log('💾 Called story.setScenes() - should trigger localStorage save');
+        console.log('💾 Called story.setScenes() - should trigger database save');
 
         // Verify the context was updated
         setTimeout(() => {
@@ -1364,6 +1433,40 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
                 <div className="text-sm text-gray-900">{story.sceneCount}개</div>
               </div>
             </div>
+
+            {/* Input Changes Warning - Only show when content exists AND inputs changed */}
+            {hasInputChanges && scenes.length > 0 && (
+              <div className="bg-amber-50 rounded-xl p-5 border-2 border-amber-300">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="text-amber-800 font-medium mb-1">설정이 변경되었습니다</h3>
+                    <p className="text-sm text-amber-700 mb-4">
+                      스타일, 주제, 캐릭터 또는 장면 수가 변경되었습니다.
+                      기존 콘텐츠를 유지하거나, 새로운 설정으로 다시 생성할 수 있습니다.
+                    </p>
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={handleRegenerateStory}
+                        className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                        size="sm"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        새로 생성하기
+                      </Button>
+                      <Button
+                        onClick={handleKeepExistingContent}
+                        variant="outline"
+                        className="border-amber-400 text-amber-700 hover:bg-amber-100 rounded-lg"
+                        size="sm"
+                      >
+                        기존 콘텐츠 유지
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Script Generation State */}
             {isGeneratingScript && (
@@ -1853,34 +1956,53 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
       </div>
 
       {/* Bottom Navigation */}
-      <div className="flex-shrink-0 bg-white">
-        <div className="px-8 py-4 flex justify-center items-center" style={{ gap: '400px' }}>
-          <Button
+      <div className="flex-shrink-0 bg-white border-t border-gray-100">
+        <div className="px-8 py-4 flex justify-between items-center">
+          {/* Left: Back Arrow */}
+          <button
             onClick={onBack}
-            disabled={hasActiveOperations}
-            variant="outline"
-            style={{ width: '200px' }}
-            className="py-3 rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            title="이전 단계"
           >
-            이전
-          </Button>
-          <Button
-            onClick={() => {
-              // Force save to localStorage before navigation to prevent data loss
-              console.log('🔒 Force saving to localStorage before navigation...');
-              story.forceSave();
-              console.log('✅ Data saved, proceeding to next page');
-              onNext();
-            }}
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
+
+          {/* Center: Main Buttons */}
+          <div className="flex items-center" style={{ gap: '400px' }}>
+            <Button
+              onClick={onBack}
+              disabled={hasActiveOperations}
+              variant="outline"
+              style={{ width: '200px' }}
+              className="py-3 rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              이전
+            </Button>
+            <Button
+              onClick={onNext}
+              disabled={!canProceedToFinal}
+              style={{ width: '200px' }}
+              className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
+              title={!canProceedToFinal ? '모든 장면의 비디오와 나레이션이 필요합니다' : '최종 비디오 페이지로 이동'}
+            >
+              다음
+            </Button>
+          </div>
+
+          {/* Right: Forward Arrow - Disabled if scenes not complete */}
+          <button
+            onClick={onNext}
             disabled={!canProceedToFinal}
-            style={{ width: '200px' }}
-            className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
-            title={!canProceedToFinal ? '모든 장면의 비디오와 나레이션이 필요합니다' : '최종 비디오 페이지로 이동'}
+            className={`w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center transition-colors ${
+              canProceedToFinal ? 'hover:bg-gray-50' : 'opacity-30 cursor-not-allowed'
+            }`}
+            title={canProceedToFinal ? "다음 단계" : "모든 장면의 비디오와 나레이션이 필요합니다"}
           >
-            다음
-          </Button>
+            <ChevronRight className={`w-6 h-6 ${canProceedToFinal ? 'text-gray-600' : 'text-gray-400'}`} />
+          </button>
         </div>
       </div>
+
     </div>
   );
 }

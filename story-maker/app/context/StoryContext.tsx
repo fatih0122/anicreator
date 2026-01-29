@@ -90,14 +90,12 @@ interface StoryContextType {
   // Helper to clear generated content when inputs change
   clearGeneratedContent: () => void;
 
-  // Force immediate save to localStorage (bypasses debounce)
-  forceSave: () => void;
-
   // Project persistence
   projectId: string | null;
   setProjectId: (id: string | null) => void;
   loadFromProject: (project: Project) => void;
-  saveToDatabase: () => Promise<void>;
+  saveToDatabase: (overrides?: { uploadedCharacterUrl?: string; isCharacterUploaded?: boolean }) => Promise<void>;
+  isLoadingProject: boolean;  // Flag to indicate project is being loaded (skip regeneration)
 
   // Reset function
   reset: () => void;
@@ -105,10 +103,8 @@ interface StoryContextType {
 
 const StoryContext = createContext<StoryContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'story-maker-data';
-
 export function StoryProvider({ children }: { children: ReactNode }) {
-  // Initialize state from localStorage
+  // Hydration flag to prevent SSR issues
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Step 1: Style & Theme
@@ -168,6 +164,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
 
   // Flag to prevent cascade invalidation during project load
   const isLoadingProjectRef = useRef(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
 
   // Helper to clear generated content when inputs change
   const clearGeneratedContent = () => {
@@ -183,50 +180,8 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     setFinalVideoUrl('');
   };
 
-  // Load from localStorage on mount
+  // Mark as hydrated on mount - database is the single source of truth
   useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
-      try {
-        const data = JSON.parse(savedData);
-        setSelectedStyle(data.selectedStyle || '');
-        setSelectedThemes(data.selectedThemes || []);
-        setCustomTheme(data.customTheme || '');
-        setCharacterName(data.characterName || '');
-        setCharacterType(data.characterType || '');
-        setPersonality(data.personality || '');
-        setCharacterDescription(data.characterDescription || '');
-        setCharacterCreationMethod(data.characterCreationMethod ?? null);
-        setCharacterCreationStep(data.characterCreationStep || 'method');
-        setCharacterImageUrl(data.characterImageUrl || '');
-        setCharacterPrompt(data.characterPrompt || '');
-        setIsCharacterUploaded(data.isCharacterUploaded || false);
-        setUploadedCharacterUrl(data.uploadedCharacterUrl || '');
-        setUploadedImagePreview(data.uploadedImagePreview || '');
-        setCharacterOptions(data.characterOptions || []);
-        setSelectedCharacterId(data.selectedCharacterId ?? null);
-        setStoryTitle(data.storyTitle || '');
-        setScenes(data.scenes || []);
-        setSceneCount(data.sceneCount || 5);
-        setImagePrompts(data.imagePrompts || []);
-        setVideoPrompts(data.videoPrompts || []);
-        setVisualBlueprint(data.visualBlueprint || null);
-        setSceneImages(data.sceneImages || []);
-        setVideos(data.videos || []);
-        setSideCharacterImages(data.sideCharacterImages || []);
-        console.log('📂 Loaded from localStorage:');
-        console.log('  - sceneImages:', data.sceneImages?.length || 0, JSON.stringify(data.sceneImages));
-        console.log('  - videos:', data.videos?.length || 0, JSON.stringify(data.videos));
-        console.log('  - scenes:', data.scenes?.length || 0);
-        setNarrationVoice(data.narrationVoice || 'auto');
-        setStorySignature(data.storySignature || '');
-        setFinalVideoUrl(data.finalVideoUrl || '');
-        setLastVisitedPage(data.lastVisitedPage || '/create/start');
-        setProjectId(data.projectId || null);
-      } catch (error) {
-        console.error('Error loading saved story data:', error);
-      }
-    }
     setIsHydrated(true);
   }, []);
 
@@ -386,169 +341,48 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     prevSceneCountRef.current = sceneCount;
   }, [sceneCount, isHydrated]);
 
-  // Debounced save to localStorage
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
-
-  useEffect(() => {
-    if (!isHydrated) return; // Don't save during initial hydration
-
-    // Clear previous timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Debounce localStorage writes for better performance
-    saveTimeoutRef.current = setTimeout(() => {
-      const data = {
-        selectedStyle,
-        selectedThemes,
-        customTheme,
-        characterName,
-        characterType,
-        personality,
-        characterDescription,
-        characterCreationMethod,
-        characterCreationStep,
-        characterImageUrl,
-        characterPrompt,
-        isCharacterUploaded,
-        uploadedCharacterUrl,
-        uploadedImagePreview,
-        characterOptions,
-        selectedCharacterId,
-        storyTitle,
-        scenes,
-        sceneCount,
-        imagePrompts,
-        videoPrompts,
-        visualBlueprint,
-        sceneImages,
-        videos,
-        sideCharacterImages,
-        narrationVoice,
-        storySignature,
-        finalVideoUrl,
-        lastVisitedPage,
-        projectId,
-      };
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      console.log('💾 Saved to localStorage');
-    }, 300); // 300ms debounce
-
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [
-    isHydrated,
-    selectedStyle,
-    selectedThemes,
-    customTheme,
-    characterName,
-    characterType,
-    personality,
-    characterDescription,
-    characterCreationMethod,
-    characterCreationStep,
-    characterImageUrl,
-    characterPrompt,
-    isCharacterUploaded,
-    uploadedCharacterUrl,
-    uploadedImagePreview,
-    characterOptions,
-    selectedCharacterId,
-    storyTitle,
-    scenes,
-    sceneCount,
-    imagePrompts,
-    videoPrompts,
-    visualBlueprint,
-    sceneImages,
-    videos,
-    sideCharacterImages,
-    narrationVoice,
-    storySignature,
-    finalVideoUrl,
-    lastVisitedPage,
-  ]);
-
-  // Force immediate save to localStorage (bypasses debounce)
-  const forceSave = useCallback(() => {
-    const data = {
-      selectedStyle,
-      selectedThemes,
-      customTheme,
-      characterName,
-      characterType,
-      personality,
-      characterDescription,
-      characterCreationMethod,
-      characterCreationStep,
-      characterImageUrl,
-      characterPrompt,
-      isCharacterUploaded,
-      uploadedCharacterUrl,
-      uploadedImagePreview,
-      characterOptions,
-      selectedCharacterId,
-      storyTitle,
-      scenes,
-      sceneCount,
-      imagePrompts,
-      videoPrompts,
-      sceneImages,
-      videos,
-      sideCharacterImages,
-      narrationVoice,
-      storySignature,
-      finalVideoUrl,
-      lastVisitedPage,
-    };
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    console.log('💾 Force saved to localStorage - videos:', videos.length, 'sceneImages:', sceneImages.length);
-  }, [
-    selectedStyle,
-    selectedThemes,
-    customTheme,
-    characterName,
-    characterType,
-    personality,
-    characterDescription,
-    characterCreationMethod,
-    characterCreationStep,
-    characterImageUrl,
-    characterPrompt,
-    isCharacterUploaded,
-    uploadedCharacterUrl,
-    uploadedImagePreview,
-    characterOptions,
-    selectedCharacterId,
-    storyTitle,
-    scenes,
-    sceneCount,
-    imagePrompts,
-    videoPrompts,
-    visualBlueprint,
-    sceneImages,
-    videos,
-    sideCharacterImages,
-    narrationVoice,
-    storySignature,
-    finalVideoUrl,
-    lastVisitedPage,
-  ]);
-
   // Load project data from database
   const loadFromProject = useCallback((project: Project) => {
     console.log('📂 Loading project from database:', project.id);
 
     // PREVENT cascade invalidation during project load
     isLoadingProjectRef.current = true;
+    setIsLoadingProject(true);
 
+    // FULL STATE RESET before loading new project data
+    // This prevents any mixing between projects
+    setSelectedStyle('');
+    setSelectedThemes([]);
+    setCustomTheme('');
+    setCharacterName('');
+    setCharacterType('');
+    setPersonality('');
+    setCharacterDescription('');
+    setCharacterCreationMethod(null);
+    setCharacterCreationStep('method');
+    setCharacterImageUrl('');
+    setCharacterPrompt('');
+    setIsCharacterUploaded(false);
+    setUploadedCharacterUrl('');
+    setUploadedImagePreview('');
+    setCharacterOptions([]);
+    setSelectedCharacterId(null);
+    setStoryTitle('');
+    setScenes([]);
+    setSceneCount(6);
+    setImagePrompts([]);
+    setVideoPrompts([]);
+    setVisualBlueprint(null);
+    setSceneImages([]);
+    setVideos([]);
+    setSideCharacterImages([]);
+    setNarrationVoice('auto');
+    setStorySignature('');
+    setFinalVideoUrl('');
+    setLastVisitedPage('/create/start');
+    setCurrentStep('style');
+
+    // Now load the project data
     setProjectId(project.id);
     setSelectedStyle(project.style || '');
     setSelectedThemes(project.themes || []);
@@ -566,8 +400,11 @@ export function StoryProvider({ children }: { children: ReactNode }) {
 
     // Load scenes
     if (project.scenes && project.scenes.length > 0) {
+      // Sort scenes by scene_number first to ensure consistent ordering
+      const sortedScenes = [...project.scenes].sort((a, b) => a.scene_number - b.scene_number);
+
       // Convert ProjectScene to SceneLine format
-      const sceneLines: SceneLine[] = project.scenes.map(s => ({
+      const sceneLines: SceneLine[] = sortedScenes.map(s => ({
         scene_number: s.scene_number,
         scene_type: (s.scene_type as 'character' | 'scenery') || 'character',
         script_text: s.script_text || '',
@@ -575,20 +412,18 @@ export function StoryProvider({ children }: { children: ReactNode }) {
       }));
       setScenes(sceneLines);
 
-      // Load scene images
-      const images = project.scenes
-        .sort((a, b) => a.scene_number - b.scene_number)
-        .map(s => s.image_url || '');
+      // Load scene images (using sorted array for consistent indexing)
+      const images = sortedScenes.map(s => s.image_url || '');
       setSceneImages(images);
+      console.log('📷 Loaded scene images from database:', images.filter(img => img).length, 'of', images.length);
 
-      // Load scene videos
-      const vids = project.scenes
-        .sort((a, b) => a.scene_number - b.scene_number)
-        .map(s => s.video_url || '');
+      // Load scene videos (using sorted array for consistent indexing)
+      const vids = sortedScenes.map(s => s.video_url || '');
       setVideos(vids);
+      console.log('🎬 Loaded scene videos from database:', vids.filter(v => v).length, 'of', vids.length);
 
       // Load image prompts
-      const imgPrompts: ImagePrompt[] = project.scenes
+      const imgPrompts: ImagePrompt[] = sortedScenes
         .filter(s => s.image_prompt)
         .map(s => ({
           scene_number: s.scene_number,
@@ -598,7 +433,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
       setImagePrompts(imgPrompts);
 
       // Load video prompts
-      const vidPrompts: VideoPrompt[] = project.scenes
+      const vidPrompts: VideoPrompt[] = sortedScenes
         .filter(s => s.video_prompt)
         .map(s => ({
           scene_number: s.scene_number,
@@ -607,38 +442,45 @@ export function StoryProvider({ children }: { children: ReactNode }) {
       setVideoPrompts(vidPrompts);
     }
 
-    // Load character creation state
-    if (project.character_creation_method) {
-      setCharacterCreationMethod(project.character_creation_method);
-    }
-    if (project.character_options && project.character_options.length > 0) {
-      setCharacterOptions(project.character_options);
-    }
-    if (project.character_prompt) {
-      setCharacterPrompt(project.character_prompt);
-    }
-    if (project.selected_character_id !== undefined && project.selected_character_id !== null) {
-      setSelectedCharacterId(project.selected_character_id);
-    }
+    // Load character creation state - ALWAYS set values to prevent stale state
+    // Use explicit values or defaults, don't skip with conditions
+    setCharacterCreationMethod(project.character_creation_method || null);
+    setCharacterOptions(project.character_options || []);
+    setCharacterPrompt(project.character_prompt || '');
+    setSelectedCharacterId(project.selected_character_id ?? null);
 
-    // Set character creation step based on state
-    if (project.character_image_url) {
-      // Character is fully selected
-      setCharacterCreationStep('selection');
-      if (project.character_creation_method === 'upload') {
-        setIsCharacterUploaded(true);
-      }
-    } else if (project.character_options && project.character_options.length > 0) {
-      // Character options exist but not selected
-      setCharacterCreationStep('selection');
-    } else if (project.character_name) {
-      // Has character details but no options yet
-      setCharacterCreationStep('form');
-    } else if (project.character_creation_method) {
-      // Has method selected but nothing else
-      setCharacterCreationStep('form');
+    // Load character uploaded state - ALWAYS set to ensure clean state
+    setIsCharacterUploaded(project.is_character_uploaded || false);
+    setUploadedCharacterUrl(project.uploaded_character_url || '');
+    setUploadedImagePreview(project.uploaded_character_url || '');
+
+    // Debug log for uploaded character
+    console.log('📸 Loading uploaded character state:', {
+      is_character_uploaded: project.is_character_uploaded,
+      uploaded_character_url: project.uploaded_character_url,
+      character_creation_method: project.character_creation_method,
+      character_creation_step: project.character_creation_step,
+    });
+
+    // Set character creation step - use saved value or infer for backward compatibility
+    if (project.character_creation_step) {
+      setCharacterCreationStep(project.character_creation_step);
     } else {
-      setCharacterCreationStep('method');
+      // Fallback: infer from state for backward compatibility
+      if (project.character_image_url) {
+        setCharacterCreationStep('selection');
+      } else if (project.character_options && project.character_options.length > 0) {
+        setCharacterCreationStep('selection');
+      } else if (project.uploaded_character_url) {
+        // If there's an uploaded image URL, user was on the upload form
+        setCharacterCreationStep('form');
+      } else if (project.character_name) {
+        setCharacterCreationStep('form');
+      } else if (project.character_creation_method) {
+        setCharacterCreationStep('form');
+      } else {
+        setCharacterCreationStep('method');
+      }
     }
 
     // SYNC refs to loaded values to prevent false invalidation when flag clears
@@ -652,16 +494,44 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     prevCharacterPromptRef.current = project.character_prompt || '';
     prevSceneCountRef.current = project.scene_count || 6;
 
+    // CRITICAL: Compute and set the story signature from loaded project data
+    // This prevents SceneGeneration from detecting a false "input change" and clearing content
+    const loadedSignature = JSON.stringify({
+      characterName: project.character_name || '',
+      characterType: project.character_type || '',
+      personality: project.personality || '',
+      characterDescription: project.character_description || '',
+      characterPrompt: project.character_prompt || '',
+      characterImageUrl: project.character_image_url || '',
+      selectedStyle: project.style || '',
+      selectedThemes: project.themes || [],
+      customTheme: project.custom_theme || '',
+      sceneCount: project.scene_count || 6,
+    });
+    setStorySignature(loadedSignature);
+    console.log('📝 Set story signature from loaded project');
+
     // RE-ENABLE invalidation after state settles
     queueMicrotask(() => {
       isLoadingProjectRef.current = false;
       console.log('✅ Project loaded, invalidation re-enabled');
     });
+
+    // Clear the loading state after a short delay to allow components to read it
+    setTimeout(() => {
+      setIsLoadingProject(false);
+      console.log('✅ isLoadingProject cleared');
+    }, 500);
   }, []);
 
   // Save current state to database
-  const saveToDatabase = useCallback(async () => {
+  // Accepts optional overrides for values that may have just been set (to avoid stale closure)
+  const saveToDatabase = useCallback(async (overrides?: { uploadedCharacterUrl?: string; isCharacterUploaded?: boolean }) => {
     try {
+      // Use overrides if provided (for immediate saves after state updates)
+      const finalUploadedCharacterUrl = overrides?.uploadedCharacterUrl ?? uploadedCharacterUrl;
+      const finalIsCharacterUploaded = overrides?.isCharacterUploaded ?? isCharacterUploaded;
+
       const projectData = {
         title: storyTitle || (characterName ? `${characterName}의 이야기` : undefined),
         style: selectedStyle,
@@ -673,15 +543,20 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         character_description: characterDescription,
         character_image_url: characterImageUrl,
         character_creation_method: characterCreationMethod,
+        character_creation_step: characterCreationStep,
         character_options: characterOptions.length > 0 ? characterOptions : undefined,
         character_prompt: characterPrompt || undefined,
         selected_character_id: selectedCharacterId,
+        is_character_uploaded: finalIsCharacterUploaded,
+        uploaded_character_url: finalUploadedCharacterUrl || undefined,
         scene_count: sceneCount,
         narration_voice: narrationVoice,
         final_video_url: finalVideoUrl,
         status: finalVideoUrl ? 'completed' : 'draft',
         current_step: currentStep,
       };
+
+      console.log('📤 Saving to database with uploaded_character_url:', finalUploadedCharacterUrl);
 
       let savedProjectId = projectId;
 
@@ -727,9 +602,12 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     characterDescription,
     characterImageUrl,
     characterCreationMethod,
+    characterCreationStep,
     characterOptions,
     characterPrompt,
     selectedCharacterId,
+    isCharacterUploaded,
+    uploadedCharacterUrl,
     sceneCount,
     narrationVoice,
     finalVideoUrl,
@@ -771,9 +649,12 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     personality,
     characterImageUrl,
     characterCreationMethod,
+    characterCreationStep,
     characterOptions,
     characterPrompt,
     selectedCharacterId,
+    isCharacterUploaded,
+    uploadedCharacterUrl,
     storyTitle,
     scenes,
     sceneImages,
@@ -814,9 +695,6 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     setLastVisitedPage('/create/start');
     setCurrentStep('style');
     setProjectId(null);
-
-    // Clear localStorage
-    localStorage.removeItem(STORAGE_KEY);
   };
 
   return (
@@ -883,11 +761,11 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         currentStep,
         setCurrentStep,
         clearGeneratedContent,
-        forceSave,
         projectId,
         setProjectId,
         loadFromProject,
         saveToDatabase,
+        isLoadingProject,
         reset,
       }}
     >

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Compass, Heart, Wand2, Users, Dog, Sparkles, RefreshCw, Home } from "lucide-react";
+import { Compass, Heart, Wand2, Users, Dog, Sparkles, RefreshCw, Home, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 import UnicornOnly from "../imports/UnicornOnly";
@@ -282,37 +282,59 @@ export function StoryTheme({ onNext }: StoryThemeProps) {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="flex-shrink-0 bg-white">
-        <div className="px-8 py-4 flex justify-center items-center" style={{ gap: '400px' }}>
-          <Button
-            variant="outline"
+      <div className="flex-shrink-0 bg-white border-t border-gray-100">
+        <div className="px-8 py-4 flex justify-between items-center">
+          {/* Left: Back Arrow (disabled on first page) */}
+          <button
             disabled
-            style={{ width: '200px' }}
-            className="py-3 rounded-full border-gray-300 text-gray-700 disabled:opacity-30"
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center opacity-30 cursor-not-allowed"
+            title="이전 단계"
           >
-            이전
-          </Button>
-          <Button
-            onClick={async () => {
-              if (!story.selectedStyle) return;
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
 
-              // Save to backend
-              try {
-                await api.saveStyleTheme(story.selectedStyle, [], "");
-                console.log('✅ Style saved to backend:', story.selectedStyle);
-              } catch (error) {
-                console.error('❌ Failed to save style:', error);
-              }
+          {/* Center: Main Buttons */}
+          <div className="flex items-center" style={{ gap: '400px' }}>
+            <Button
+              variant="outline"
+              disabled
+              style={{ width: '200px' }}
+              className="py-3 rounded-full border-gray-300 text-gray-700 disabled:opacity-30"
+            >
+              이전
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!story.selectedStyle) return;
 
-              // Navigate to next page
-              if (onNext) onNext();
-            }}
+                // Save to backend
+                try {
+                  await api.saveStyleTheme(story.selectedStyle, [], "");
+                  console.log('✅ Style saved to backend:', story.selectedStyle);
+                } catch (error) {
+                  console.error('❌ Failed to save style:', error);
+                }
+
+                // Navigate to next page
+                if (onNext) onNext();
+              }}
+              disabled={!story.selectedStyle}
+              style={{ width: '200px' }}
+              className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              다음
+            </Button>
+          </div>
+
+          {/* Right: Forward Arrow */}
+          <button
+            onClick={() => onNext?.()}
             disabled={!story.selectedStyle}
-            style={{ width: '200px' }}
-            className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="다음 단계"
           >
-            다음
-          </Button>
+            <ChevronRight className="w-6 h-6 text-gray-600" />
+          </button>
         </div>
       </div>
     </div>

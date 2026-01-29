@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -20,9 +20,12 @@ class Project(Base):
     character_description = Column(Text, nullable=True)
     character_image_url = Column(Text, nullable=True)
     character_creation_method = Column(String(20), nullable=True)  # 'upload' or 'generate'
+    character_creation_step = Column(String(20), default="method")  # 'method', 'form', 'selection'
     character_options = Column(JSON, nullable=True)  # [{id, url, prompt}]
     character_prompt = Column(Text, nullable=True)  # prompt used for character
     selected_character_id = Column(Integer, nullable=True)  # which option was selected
+    is_character_uploaded = Column(Boolean, default=False)  # whether character was uploaded
+    uploaded_character_url = Column(Text, nullable=True)  # URL of uploaded character image
     scene_count = Column(Integer, default=6)
     narration_voice = Column(String(100), nullable=True)
     final_video_url = Column(Text, nullable=True)
@@ -46,9 +49,12 @@ class Project(Base):
             "character_description": self.character_description,
             "character_image_url": self.character_image_url,
             "character_creation_method": self.character_creation_method,
+            "character_creation_step": self.character_creation_step,
             "character_options": self.character_options,
             "character_prompt": self.character_prompt,
             "selected_character_id": self.selected_character_id,
+            "is_character_uploaded": self.is_character_uploaded,
+            "uploaded_character_url": self.uploaded_character_url,
             "scene_count": self.scene_count,
             "narration_voice": self.narration_voice,
             "final_video_url": self.final_video_url,

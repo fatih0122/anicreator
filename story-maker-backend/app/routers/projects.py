@@ -40,9 +40,12 @@ class ProjectCreate(BaseModel):
     character_description: Optional[str] = None
     character_image_url: Optional[str] = None
     character_creation_method: Optional[str] = None  # 'upload' or 'generate'
+    character_creation_step: Optional[str] = "method"  # 'method', 'form', 'selection'
     character_options: Optional[List[CharacterOption]] = None
     character_prompt: Optional[str] = None
     selected_character_id: Optional[int] = None
+    is_character_uploaded: Optional[bool] = False
+    uploaded_character_url: Optional[str] = None
     scene_count: Optional[int] = 6
     narration_voice: Optional[str] = None
     final_video_url: Optional[str] = None
@@ -61,9 +64,12 @@ class ProjectUpdate(BaseModel):
     character_description: Optional[str] = None
     character_image_url: Optional[str] = None
     character_creation_method: Optional[str] = None
+    character_creation_step: Optional[str] = None
     character_options: Optional[List[CharacterOption]] = None
     character_prompt: Optional[str] = None
     selected_character_id: Optional[int] = None
+    is_character_uploaded: Optional[bool] = None
+    uploaded_character_url: Optional[str] = None
     scene_count: Optional[int] = None
     narration_voice: Optional[str] = None
     final_video_url: Optional[str] = None
@@ -94,9 +100,12 @@ async def create_project(project: ProjectCreate, db: AsyncSession = Depends(get_
         character_description=project.character_description,
         character_image_url=project.character_image_url,
         character_creation_method=project.character_creation_method,
+        character_creation_step=project.character_creation_step,
         character_options=char_options,
         character_prompt=project.character_prompt,
         selected_character_id=project.selected_character_id,
+        is_character_uploaded=project.is_character_uploaded,
+        uploaded_character_url=project.uploaded_character_url,
         scene_count=project.scene_count,
         narration_voice=project.narration_voice,
         final_video_url=project.final_video_url,
@@ -123,9 +132,12 @@ async def create_project(project: ProjectCreate, db: AsyncSession = Depends(get_
             "character_description": db_project.character_description,
             "character_image_url": db_project.character_image_url,
             "character_creation_method": db_project.character_creation_method,
+            "character_creation_step": db_project.character_creation_step,
             "character_options": db_project.character_options,
             "character_prompt": db_project.character_prompt,
             "selected_character_id": db_project.selected_character_id,
+            "is_character_uploaded": db_project.is_character_uploaded,
+            "uploaded_character_url": db_project.uploaded_character_url,
             "scene_count": db_project.scene_count,
             "narration_voice": db_project.narration_voice,
             "final_video_url": db_project.final_video_url,

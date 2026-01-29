@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Wand2, Image as ImageIcon, Home } from "lucide-react";
+import { Upload, Wand2, Image as ImageIcon, Home, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Progress } from "./ui/progress";
@@ -26,11 +26,16 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
     router.push('/create/start');
   };
 
-  // Explicit 3-step state machine: method → form → selection
+  // Use context directly for step - NO local state to avoid sync issues
+  // This is the key fix: context is the single source of truth
   type Step = 'method' | 'form' | 'selection';
+  const currentStep = (story.characterCreationStep || 'method') as Step;
 
-  // Initialize from context to remember where user was when they left
-  const [currentStep, setCurrentStep] = useState<Step>(story.characterCreationStep);
+  // Helper to change step - updates context directly
+  const setCurrentStep = (step: Step) => {
+    story.setCharacterCreationStep(step);
+  };
+
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -38,7 +43,19 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use uploaded image from context for persistence across navigation
-  const uploadedImage = story.uploadedImagePreview;
+  const uploadedImage = story.uploadedImagePreview || story.uploadedCharacterUrl;
+
+  // Debug: Log uploaded image state on mount and changes
+  useEffect(() => {
+    console.log('📸 CharacterCreation mounted/updated:', {
+      uploadedImagePreview: story.uploadedImagePreview,
+      uploadedCharacterUrl: story.uploadedCharacterUrl,
+      uploadedImage,
+      characterCreationMethod: story.characterCreationMethod,
+      characterCreationStep: story.characterCreationStep,
+      currentStep,
+    });
+  }, [story.uploadedImagePreview, story.uploadedCharacterUrl, story.characterCreationMethod, story.characterCreationStep]);
 
   // Sync selected character from context
   useEffect(() => {
@@ -47,15 +64,10 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
     }
   }, [story.selectedCharacterId]);
 
-  // Sync current step to context whenever it changes (for persistence)
-  useEffect(() => {
-    story.setCharacterCreationStep(currentStep);
-  }, [currentStep, story.setCharacterCreationStep]);
-
   // Handler to set method and save to context, then move to form step
   const handleMethodSelection = (method: "upload" | "generate") => {
     story.setCharacterCreationMethod(method);
-    setCurrentStep('form');
+    story.setCharacterCreationStep('form');
   };
 
   // Helper to get personalities array from context
@@ -95,16 +107,45 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
     story.setPersonality(newPersonalities.join(", "));
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setUploadedFile(file);
+
+      // Show preview immediately using data URL
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Save preview to context for persistence
         story.setUploadedImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+
+      // Upload to S3 immediately so URL is persisted to database
+      setIsUploading(true);
+      try {
+        const uploadResponse = await api.uploadCharacter(file);
+        console.log('✅ Character uploaded to S3 immediately:', uploadResponse);
+
+        const s3Url = uploadResponse.character_url;
+
+        // Save S3 URL to context
+        story.setUploadedCharacterUrl(s3Url);
+        story.setIsCharacterUploaded(true);
+        // Also update preview to S3 URL for consistency
+        story.setUploadedImagePreview(s3Url);
+
+        // Force immediate save to database with override (don't wait for debounce)
+        // Pass URL directly to avoid stale closure issue
+        await story.saveToDatabase({ uploadedCharacterUrl: s3Url, isCharacterUploaded: true });
+        console.log('✅ Uploaded character URL saved to database:', s3Url);
+      } catch (error) {
+        console.error('❌ Failed to upload character to S3:', error);
+        // Keep the local preview but warn user
+        alert('이미지 업로드에 실패했습니다. 다시 시도해주세요.');
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -149,7 +190,14 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
   };
 
   const proceedWithUpload = async () => {
-    if (!uploadedFile || !story.characterType) return;
+    // Image should already be uploaded to S3 (done immediately on file select)
+    // Just need the S3 URL to generate variations
+    const characterUrl = story.uploadedCharacterUrl;
+
+    if (!characterUrl || !story.characterType) return;
+
+    // Don't proceed if still uploading
+    if (isUploading) return;
 
     setIsGenerating(true);
 
@@ -159,17 +207,12 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
         story.setPersonality("friendly");
       }
 
-      // Step 1: Upload character image to S3
-      const uploadResponse = await api.uploadCharacter(uploadedFile);
-      console.log('✅ Character uploaded to S3:', uploadResponse);
+      console.log('✅ Using uploaded character URL:', characterUrl);
 
-      // Store the uploaded image URL for regeneration
-      story.setUploadedCharacterUrl(uploadResponse.character_url);
-
-      // Step 2: Generate 2 variations from uploaded image with style conversion
+      // Generate 2 variations from uploaded image with style conversion
       // This creates character options just like AI generation
       const variationsResponse = await api.generateCharacterVariationsFromUpload(
-        uploadResponse.character_url,
+        characterUrl,
         story.selectedStyle,
         story.characterType,
         story.characterName || "Character",
@@ -268,7 +311,8 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
   const creationMethod = story.characterCreationMethod;
   const hasGeneratedCharacters = story.characterOptions && story.characterOptions.length > 0;
   const isFormValid = creationMethod === "generate" && story.characterType && story.personality;
-  const isUploadValid = creationMethod === "upload" && uploadedImage && story.characterType;
+  // Upload is valid when S3 URL is set (uploaded immediately on file select) and not currently uploading
+  const isUploadValid = creationMethod === "upload" && story.uploadedCharacterUrl && story.characterType && !isUploading;
 
   return (
     <div className="h-[calc(100vh-90px)] bg-white overflow-hidden flex flex-col">
@@ -440,10 +484,17 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
                   className="hidden"
                 />
                 <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-[#6D14EC]/30 rounded-xl py-6 px-6 text-center cursor-pointer hover:border-[#6D14EC] hover:bg-[#6D14EC]/5 transition-all"
+                  onClick={() => !isUploading && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed border-[#6D14EC]/30 rounded-xl py-6 px-6 text-center transition-all ${
+                    isUploading ? 'cursor-wait opacity-70' : 'cursor-pointer hover:border-[#6D14EC] hover:bg-[#6D14EC]/5'
+                  }`}
                 >
-                  {uploadedImage ? (
+                  {isUploading ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="w-9 h-9 text-[#6D14EC] animate-spin" />
+                      <p className="text-sm text-[#6D14EC]">이미지 업로드 중...</p>
+                    </div>
+                  ) : uploadedImage ? (
                     <div className="flex flex-col items-center gap-2">
                       <ImageWithFallback
                         src={uploadedImage}
@@ -571,73 +622,94 @@ export function CharacterCreation({ onNext, onSkipSelection, onBack }: Character
       </div>
 
       {/* Bottom Navigation */}
-      <div className="flex-shrink-0 bg-white">
-        <div className="px-8 py-4 flex justify-center items-center" style={{ gap: '400px' }}>
-          <Button
-            onClick={() => {
-              if (currentStep === 'selection') {
-                // Step 3 → Step 2: Back to form
-                setCurrentStep('form');
-              } else if (currentStep === 'form') {
-                // Step 2 → Step 1: Back to method selection
-                setCurrentStep('method');
-              } else {
-                // Step 1 → Previous route
-                onBack?.();
-              }
-            }}
-            disabled={isGenerating || isRegenerating}
-            variant="outline"
-            style={{ width: '200px' }}
-            className="py-3 rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+      <div className="flex-shrink-0 bg-white border-t border-gray-100">
+        <div className="px-8 py-4 flex justify-between items-center">
+          {/* Left: Back Arrow */}
+          <button
+            onClick={() => onBack?.()}
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            title="이전 단계"
           >
-            이전
-          </Button>
-          <Button
-            onClick={() => {
-              if (currentStep === 'selection') {
-                // Step 3 → Next route: Select character and proceed
-                handleSelectCharacter();
-              } else if (currentStep === 'form') {
-                // Step 2 → Step 3: Generate/upload OR just navigate if already have characters
-                if (hasGeneratedCharacters) {
-                  // Already have characters, just navigate forward
-                  setCurrentStep('selection');
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
+
+          {/* Center: Main Buttons */}
+          <div className="flex items-center" style={{ gap: '400px' }}>
+            <Button
+              onClick={() => {
+                if (currentStep === 'selection') {
+                  // Step 3 → Step 2: Back to form
+                  setCurrentStep('form');
+                } else if (currentStep === 'form') {
+                  // Step 2 → Step 1: Back to method selection
+                  setCurrentStep('method');
                 } else {
-                  // No characters yet, generate new ones
-                  if (creationMethod === "upload") {
-                    proceedWithUpload();
-                  } else if (creationMethod === "generate") {
-                    generateCharacters();
+                  // Step 1 → Previous route
+                  onBack?.();
+                }
+              }}
+              disabled={isGenerating || isRegenerating}
+              variant="outline"
+              style={{ width: '200px' }}
+              className="py-3 rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              이전
+            </Button>
+            <Button
+              onClick={() => {
+                if (currentStep === 'selection') {
+                  // Step 3 → Next route: Select character and proceed
+                  handleSelectCharacter();
+                } else if (currentStep === 'form') {
+                  // Step 2 → Step 3: Generate/upload OR just navigate if already have characters
+                  if (hasGeneratedCharacters) {
+                    // Already have characters, just navigate forward
+                    setCurrentStep('selection');
+                  } else {
+                    // No characters yet, generate new ones
+                    if (creationMethod === "upload") {
+                      proceedWithUpload();
+                    } else if (creationMethod === "generate") {
+                      generateCharacters();
+                    }
+                  }
+                } else if (currentStep === 'method') {
+                  // Step 1 → Step 2: Move to form (enabled if method already selected)
+                  if (creationMethod) {
+                    setCurrentStep('form');
                   }
                 }
-              } else if (currentStep === 'method') {
-                // Step 1 → Step 2: Move to form (enabled if method already selected)
-                if (creationMethod) {
-                  setCurrentStep('form');
-                }
+              }}
+              disabled={
+                (currentStep === 'method' && !creationMethod) ||
+                (currentStep === 'form' && !creationMethod) ||
+                (currentStep === 'form' && creationMethod === "upload" && !isUploadValid) ||
+                (currentStep === 'form' && creationMethod === "generate" && !isFormValid) ||
+                (currentStep === 'selection' && selectedCharacter === null) ||
+                isGenerating
               }
-            }}
-            disabled={
-              (currentStep === 'method' && !creationMethod) ||
-              (currentStep === 'form' && !creationMethod) ||
-              (currentStep === 'form' && creationMethod === "upload" && !isUploadValid) ||
-              (currentStep === 'form' && creationMethod === "generate" && !isFormValid) ||
-              (currentStep === 'selection' && selectedCharacter === null) ||
-              isGenerating
-            }
-            style={{ width: '200px' }}
-            className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{ width: '200px' }}
+              className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>{creationMethod === "upload" ? "업로드 중..." : "생성 중..."}</span>
+                </div>
+              ) : (
+                "다음"
+              )}
+            </Button>
+          </div>
+
+          {/* Right: Forward Arrow */}
+          <button
+            onClick={() => onNext?.()}
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            title="다음 단계"
           >
-            {isGenerating ? (
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>{creationMethod === "upload" ? "업로드 중..." : "생성 중..."}</span>
-              </div>
-            ) : (
-              "다음"
-            )}
-          </Button>
+            <ChevronRight className="w-6 h-6 text-gray-600" />
+          </button>
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useStory } from '@/app/context/StoryContext';
 import { Button } from '@/app/components/ui/button';
 import { Progress } from '@/app/components/ui/progress';
-import { ArrowLeft, Loader2, CheckCircle2, Download, Share2, Home } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, Download, Share2, Home, ChevronLeft, ChevronRight } from 'lucide-react';
 import UnicornOnly from '@/app/imports/UnicornOnly';
 import api from '@/app/services/api';
 import dynamic from 'next/dynamic';
@@ -130,14 +130,6 @@ export default function FinalVideoPage() {
       <div className="flex-1 overflow-y-auto bg-white">
         <div className="px-8 py-6 bg-white">
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Navigation */}
-            <div className="flex items-center justify-between">
-              <Button onClick={() => router.push('/create/scene')} variant="outline" className="flex items-center gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                이전
-              </Button>
-            </div>
-
             {/* No manual button - auto-generates on page load */}
 
             {/* Rendering Status - Purple border while loading */}
@@ -250,6 +242,41 @@ export default function FinalVideoPage() {
               </>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="flex-shrink-0 bg-white border-t border-gray-100">
+        <div className="px-8 py-4 flex justify-between items-center">
+          {/* Left: Back Arrow */}
+          <button
+            onClick={() => router.push('/create/scene')}
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            title="이전 단계"
+          >
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
+
+          {/* Center: Main Button */}
+          <div className="flex items-center justify-center">
+            <Button
+              onClick={() => router.push('/create/scene')}
+              variant="outline"
+              style={{ width: '200px' }}
+              className="py-3 rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400"
+            >
+              이전
+            </Button>
+          </div>
+
+          {/* Right: Forward Arrow - Disabled on final step */}
+          <button
+            disabled
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center opacity-30 cursor-not-allowed"
+            title="마지막 단계입니다"
+          >
+            <ChevronRight className="w-6 h-6 text-gray-400" />
+          </button>
         </div>
       </div>
     </div>

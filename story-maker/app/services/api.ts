@@ -103,9 +103,12 @@ export interface Project {
   character_description?: string;
   character_image_url?: string;
   character_creation_method?: 'upload' | 'generate' | null;
+  character_creation_step?: 'method' | 'form' | 'selection';
   character_options?: CharacterOption[];
   character_prompt?: string;
   selected_character_id?: number | null;
+  is_character_uploaded?: boolean;
+  uploaded_character_url?: string;
   scene_count?: number;
   narration_voice?: string;
   final_video_url?: string;
@@ -127,9 +130,12 @@ export interface ProjectCreate {
   character_description?: string;
   character_image_url?: string;
   character_creation_method?: 'upload' | 'generate' | null;
+  character_creation_step?: 'method' | 'form' | 'selection';
   character_options?: CharacterOption[];
   character_prompt?: string;
   selected_character_id?: number | null;
+  is_character_uploaded?: boolean;
+  uploaded_character_url?: string;
   scene_count?: number;
   narration_voice?: string;
   final_video_url?: string;

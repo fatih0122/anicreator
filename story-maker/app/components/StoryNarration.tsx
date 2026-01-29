@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Volume2, RefreshCw, Play, Pause, Trash2, Wand2, Heart, Compass, Mic2, ChevronDown, Users, Dog, Sparkles, Home } from "lucide-react";
+import { Volume2, RefreshCw, Play, Pause, Trash2, Wand2, Heart, Compass, Mic2, ChevronDown, ChevronLeft, ChevronRight, Users, Dog, Sparkles, Home } from "lucide-react";
 import { Button } from "./ui/button";
 import { Slider } from "./ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -679,43 +679,64 @@ export function StoryNarration({ onNext, onBack }: StoryNarrationProps) {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="flex-shrink-0 bg-white">
-        <div className="px-8 py-4 flex justify-center items-center" style={{ gap: '400px' }}>
-          <Button
-            onClick={onBack}
-            variant="outline"
-            style={{ width: '200px' }}
-            className="py-3 rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400"
+      <div className="flex-shrink-0 bg-white border-t border-gray-100">
+        <div className="px-8 py-4 flex justify-between items-center">
+          {/* Left: Back Arrow */}
+          <button
+            onClick={() => onBack?.()}
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            title="이전 단계"
           >
-            이전
-          </Button>
-          <Button
-            onClick={async () => {
-              if (selectedThemes.length === 0 && !customTheme) return;
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
 
-              // Save category data to context
-              story.setSelectedThemes(selectedThemes);
-              story.setCustomTheme(customTheme);
-              story.setNarrationVoice(globalVoice);
-              story.setSceneCount(sceneCount);
+          {/* Center: Main Buttons */}
+          <div className="flex items-center" style={{ gap: '400px' }}>
+            <Button
+              onClick={onBack}
+              variant="outline"
+              style={{ width: '200px' }}
+              className="py-3 rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400"
+            >
+              이전
+            </Button>
+            <Button
+              onClick={async () => {
+                if (selectedThemes.length === 0 && !customTheme) return;
 
-              // Save to backend
-              try {
-                await api.saveCategoryData(selectedThemes, customTheme, globalVoice, sceneCount);
-                console.log('✅ Category data saved to backend');
-              } catch (error) {
-                console.error('❌ Failed to save category data:', error);
-              }
+                // Save category data to context
+                story.setSelectedThemes(selectedThemes);
+                story.setCustomTheme(customTheme);
+                story.setNarrationVoice(globalVoice);
+                story.setSceneCount(sceneCount);
 
-              // Navigate to character creation (script will be generated later after character is selected)
-              if (onNext) onNext();
-            }}
-            disabled={selectedThemes.length === 0 && !customTheme}
-            style={{ width: '200px' }}
-            className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
+                // Save to backend
+                try {
+                  await api.saveCategoryData(selectedThemes, customTheme, globalVoice, sceneCount);
+                  console.log('✅ Category data saved to backend');
+                } catch (error) {
+                  console.error('❌ Failed to save category data:', error);
+                }
+
+                // Navigate to character creation (script will be generated later after character is selected)
+                if (onNext) onNext();
+              }}
+              disabled={selectedThemes.length === 0 && !customTheme}
+              style={{ width: '200px' }}
+              className="py-3 rounded-full bg-[#6D14EC] hover:bg-[#5A0FCC] text-white disabled:bg-[#6D14EC] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              다음
+            </Button>
+          </div>
+
+          {/* Right: Forward Arrow */}
+          <button
+            onClick={() => onNext?.()}
+            className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+            title="다음 단계"
           >
-            다음
-          </Button>
+            <ChevronRight className="w-6 h-6 text-gray-600" />
+          </button>
         </div>
       </div>
     </div>
