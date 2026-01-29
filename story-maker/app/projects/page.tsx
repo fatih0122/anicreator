@@ -83,15 +83,15 @@ export default function ProjectsPage() {
   };
 
   const getThumbnail = (project: Project) => {
-    // First try character image, then first scene image
-    if (project.character_image_url) {
-      return project.character_image_url;
-    }
+    // First try scene image, then fall back to character image
     if (project.scenes && project.scenes.length > 0) {
       const firstSceneWithImage = project.scenes.find(s => s.image_url);
       if (firstSceneWithImage?.image_url) {
         return firstSceneWithImage.image_url;
       }
+    }
+    if (project.character_image_url) {
+      return project.character_image_url;
     }
     return null;
   };
