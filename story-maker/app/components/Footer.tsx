@@ -13,7 +13,7 @@ export function Footer() {
                 <BeeLogo />
               </div>
               <span className="text-[#F0D200]" style={{ fontSize: '24px', fontWeight: 'bold' }}>
-                stobee
+                Anicreator
               </span>
             </div>
             <p className="text-gray-400 max-w-md" style={{ fontSize: '14px' }}>
@@ -42,20 +42,20 @@ export function Footer() {
             <ul className="space-y-2 text-gray-400" style={{ fontSize: '14px' }}>
               <li className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
-                <a href="mailto:hello@stobee.com" className="hover:text-[#F0D200] transition-colors">
-                  hello@stobee.com
+                <a href="mailto:hello@anicreator.com" className="hover:text-[#F0D200] transition-colors">
+                  hello@anicreator.com
                 </a>
               </li>
               <li className="flex items-center gap-2">
                 <Instagram className="w-4 h-4" />
                 <a href="#" className="hover:text-[#F0D200] transition-colors">
-                  @stobee_official
+                  @anicreator_official
                 </a>
               </li>
               <li className="flex items-center gap-2">
                 <Youtube className="w-4 h-4" />
                 <a href="#" className="hover:text-[#F0D200] transition-colors">
-                  Stobee Channel
+                  Anicreator Channel
                 </a>
               </li>
             </ul>
@@ -63,7 +63,7 @@ export function Footer() {
         </div>
         
         <div className="border-t border-gray-800 pt-8 text-center text-gray-400" style={{ fontSize: '14px' }}>
-          <p>© 2025 Stobee. All rights reserved.</p>
+          <p>© 2025 Anicreator. All rights reserved.</p>
         </div>
       </div>
     </footer>

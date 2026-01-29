@@ -523,13 +523,13 @@ export function VideoExamples() {
           />
           <div className="relative py-8 px-8 text-center pb-10 pt-12">
             <h2 className="text-5xl mb-3" style={{ fontWeight: 'bold', color: 'white' }}>
-              <span style={{ color: '#F0D200' }}>Stobee AI.</span> 당신의 새로운 스토리 메이커
+              <span style={{ color: '#F0D200' }}>Anicreator AI.</span> 당신의 새로운 스토리 메이커
             </h2>
             <p className="text-white/80 mb-6 text-lg">
               아름답고, 진정성 있으며, 믿을 수 있는 이야기를 모든 세대에서 만나보세요. 1080p & 4K Ultra로 제작하세요
             </p>
             <button className="px-10 py-4 bg-white text-[#6D14EC] rounded-full hover:bg-[#6D14EC] hover:text-[#F0D200] transition-all shadow-lg mb-8 text-lg" style={{ fontWeight: '600' }}>
-              Stobee 시작하기
+              Anicreator 시작하기
             </button>
           </div>
           {/* Category Navigation - Overlapping */}

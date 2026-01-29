@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Volume2, RefreshCw, Play, Pause, Trash2, Wand2, Heart, Compass, Mic2, ChevronDown, Users, Dog, Sparkles } from "lucide-react";
+import { Volume2, RefreshCw, Play, Pause, Trash2, Wand2, Heart, Compass, Mic2, ChevronDown, Users, Dog, Sparkles, Home } from "lucide-react";
 import { Button } from "./ui/button";
 import { Slider } from "./ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -274,8 +274,16 @@ export function StoryNarration({ onNext, onBack }: StoryNarrationProps) {
       <div className="flex-shrink-0 bg-white">
         <div className="max-w-4xl mx-auto px-8 py-4">
           <div className="flex items-center justify-between mb-3">
-            {/* Unicorn + title */}
+            {/* Home button + Unicorn + title */}
             <div className="flex items-center gap-2">
+              <Button
+                onClick={() => router.push('/projects')}
+                variant="ghost"
+                className="p-2 text-[#6D14EC] hover:bg-[#6D14EC]/10 rounded-full"
+                title="내 프로젝트"
+              >
+                <Home className="w-6 h-6" />
+              </Button>
               <UnicornOnly size={60} />
               <div>
                 <h1 className="text-2xl text-[#6D14EC] font-medium">이야기 만들기</h1>

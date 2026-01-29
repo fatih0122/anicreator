@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useStory } from '@/app/context/StoryContext';
 import { Button } from '@/app/components/ui/button';
 import { Progress } from '@/app/components/ui/progress';
-import { ArrowLeft, Loader2, CheckCircle2, Download, Share2 } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, Download, Share2, Home } from 'lucide-react';
 import UnicornOnly from '@/app/imports/UnicornOnly';
 import api from '@/app/services/api';
 import dynamic from 'next/dynamic';
@@ -90,8 +90,16 @@ export default function FinalVideoPage() {
       <div className="flex-shrink-0 bg-white">
         <div className="max-w-4xl mx-auto px-8 py-4">
           <div className="flex items-center justify-between mb-3">
-            {/* Unicorn + title */}
+            {/* Home button + Unicorn + title */}
             <div className="flex items-center gap-2">
+              <Button
+                onClick={() => router.push('/projects')}
+                variant="ghost"
+                className="p-2 text-[#6D14EC] hover:bg-[#6D14EC]/10 rounded-full"
+                title="내 프로젝트"
+              >
+                <Home className="w-6 h-6" />
+              </Button>
               <UnicornOnly size={60} />
               <div>
                 <h1 className="text-2xl text-[#6D14EC] font-medium">이야기 만들기</h1>

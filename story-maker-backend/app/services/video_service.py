@@ -118,7 +118,7 @@ class VideoService:
             # Define fade transition durations and pause between segments (in seconds)
             FADE_IN_DURATION = 0.5
             FADE_OUT_DURATION = 0.5
-            PAUSE_BETWEEN_SEGMENTS = 0.3  # Small pause between segments for natural pacing
+            PAUSE_BETWEEN_SEGMENTS = 1.5  # Pause between segments for natural pacing and breathing room
 
             # Track cumulative time for subtitle timing in final concatenated video
             cumulative_time = 0.0
@@ -151,9 +151,10 @@ class VideoService:
             print(f"🎬 Creating {len(video_paths)} video segments with narration...")
             segment_paths = []
             subtitle_data_list = subtitle_paths  # Rename for clarity
+            actual_audio_durations = []  # Store ACTUAL probed audio durations for subtitle timing
             cumulative_time = 0.0
 
-            for i, (video_path, audio_path, (subtitle_text, phonemes, audio_duration)) in enumerate(
+            for i, (video_path, audio_path, (subtitle_text, phonemes, passed_audio_duration)) in enumerate(
                 zip(video_paths, audio_paths, subtitle_data_list)
             ):
                 segment_path = os.path.join(temp_dir, f"segment_{i}.mp4")
@@ -169,36 +170,64 @@ class VideoService:
                 try:
                     result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
                     video_duration = float(result.stdout.strip())
-                    print(f"📹 Segment {i+1}: Video={video_duration:.2f}s, Audio={audio_duration:.2f}s")
                 except:
-                    video_duration = audio_duration  # Fallback if probe fails
-                    print(f"⚠️ Could not probe video duration, using audio duration as fallback")
+                    video_duration = 5.0  # Fallback if probe fails
+                    print(f"⚠️ Could not probe video duration, using fallback")
 
-                # Determine final duration: use longer of video or audio
-                # This ensures neither is cut off
-                base_duration = max(video_duration, audio_duration)
+                # CRITICAL: Probe ACTUAL audio duration - don't trust passed value!
+                # The passed duration might be wrong (e.g., defaulting to 5s)
+                audio_probe_cmd = [
+                    'ffprobe',
+                    '-v', 'error',
+                    '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1',
+                    audio_path
+                ]
+                try:
+                    audio_result = subprocess.run(audio_probe_cmd, check=True, capture_output=True, text=True)
+                    audio_duration = float(audio_result.stdout.strip())
+                    if abs(audio_duration - passed_audio_duration) > 0.5:
+                        print(f"⚠️  Audio duration mismatch! Passed: {passed_audio_duration:.2f}s, Actual: {audio_duration:.2f}s - USING ACTUAL")
+                except:
+                    audio_duration = passed_audio_duration  # Fallback to passed value
+                    print(f"⚠️ Could not probe audio duration, using passed value: {audio_duration:.2f}s")
+
+                print(f"📹 Segment {i+1}: Video={video_duration:.2f}s, Audio={audio_duration:.2f}s (passed: {passed_audio_duration:.2f}s)")
+
+                # Store actual audio duration for subtitle timing later
+                actual_audio_durations.append(audio_duration)
+
+                # Determine final duration: use longer of video or audio + safety buffer
+                # This ensures audio has enough time to play completely
+                # IMPORTANT: TTS must NEVER be cut - video must extend to match audio
+                AUDIO_SAFETY_BUFFER = 0.5  # Extra time to ensure audio doesn't get cut off
+                base_duration = max(video_duration, audio_duration + AUDIO_SAFETY_BUFFER)
+                print(f"   📊 Base duration: {base_duration:.2f}s (video={video_duration:.2f}s, audio={audio_duration:.2f}s + {AUDIO_SAFETY_BUFFER}s buffer)")
 
                 # Build video filter chain (NO subtitles - we'll add them to the final concatenated video)
                 video_filters = []
 
                 # Handle video/audio duration mismatch using hybrid approach
-                if audio_duration > video_duration:
+                # CRITICAL: Video MUST extend to match audio - TTS should NEVER be cut!
+                # Always ensure video is at least as long as base_duration (audio + safety buffer)
+                if base_duration > video_duration:
+                    print(f"   ⚠️  Audio ({audio_duration:.2f}s) longer than video ({video_duration:.2f}s) - EXTENDING VIDEO to preserve TTS")
                     # Calculate how much we need to extend
-                    extend_duration = audio_duration - video_duration
-                    slowdown_factor = audio_duration / video_duration
+                    extend_duration = base_duration - video_duration
+                    slowdown_factor = base_duration / video_duration
 
                     if slowdown_factor <= 1.10:
                         # ≤10% slowdown: Simple setpts (fast, looks fine)
                         video_filters.append(f"setpts=PTS*{slowdown_factor:.4f}")
-                        print(f"   🎬 Simple slowdown by {(slowdown_factor-1)*100:.1f}% ({video_duration:.2f}s → {audio_duration:.2f}s)")
-                    elif audio_duration <= 7.0:
-                        # >10% slowdown AND audio ≤ 7s: Use frame blending for smooth slow motion
+                        print(f"   🎬 Simple slowdown by {(slowdown_factor-1)*100:.1f}% ({video_duration:.2f}s → {base_duration:.2f}s)")
+                    elif base_duration <= 7.0:
+                        # >10% slowdown AND target ≤ 7s: Use frame blending for smooth slow motion
                         video_filters.append(f"tblend=all_mode=average,setpts=PTS*{slowdown_factor:.4f}")
-                        print(f"   🎬 Smooth slowdown with frame blending: extending by {extend_duration:.2f}s ({video_duration:.2f}s → {audio_duration:.2f}s, {(slowdown_factor-1)*100:.1f}% slower)")
+                        print(f"   🎬 Smooth slowdown with frame blending: extending by {extend_duration:.2f}s ({video_duration:.2f}s → {base_duration:.2f}s, {(slowdown_factor-1)*100:.1f}% slower)")
                     else:
-                        # Audio > 7 seconds: Use freeze frame
+                        # Target > 7 seconds: Use freeze frame at the end
                         video_filters.append(f"tpad=stop_mode=clone:stop_duration={extend_duration}")
-                        print(f"   🎬 Extending video by {extend_duration:.2f}s with freeze frame to match audio")
+                        print(f"   🎬 Extending video by {extend_duration:.2f}s with freeze frame to match audio + buffer")
 
                 # Add fade transitions (within base_duration)
                 video_filters.append(f"fade=t=in:st=0:d={FADE_IN_DURATION}")
@@ -233,9 +262,9 @@ class VideoService:
                 # Apply audio filters to match video timing
                 #
                 # Logic:
-                # 1. If audio < video: pad audio with silence to match base_duration
-                # 2. Apply fades (within base_duration)
-                # 3. If additional_pause > 0: add extra silence
+                # 1. If audio < base_duration: pad audio with silence
+                # 2. Apply gentle fade-in only (NO fade-out - TTS must play completely!)
+                # 3. If additional_pause > 0: add extra silence for pause between scenes
                 audio_filters = []
 
                 # Step 1: Pad audio to match base_duration if it's shorter
@@ -244,16 +273,14 @@ class VideoService:
                     audio_filters.append(f"apad=pad_dur={pad_to_base}")
                     print(f"   🔇 Padding audio with {pad_to_base:.2f}s silence to match base duration")
 
-                # Step 2: Add audio fades (within base_duration)
-                audio_filters.append(f"afade=t=in:st=0:d={FADE_IN_DURATION}")
-                audio_filters.append(f"afade=t=out:st={base_duration-FADE_OUT_DURATION}:d={FADE_OUT_DURATION}")
+                # Step 2: Add gentle audio fade-in only (NO fade-out to preserve TTS)
+                audio_filters.append(f"afade=t=in:st=0:d=0.1")
+                print(f"   🔊 Adding gentle audio fade-in (no fade-out to preserve TTS)")
 
                 # Step 3: Add additional pause if needed
                 if additional_pause > 0:
                     audio_filters.append(f"apad=pad_dur={additional_pause}")
-                    print(f"   🔊 Adding audio fade-in, fade-out, and {additional_pause:.2f}s pause")
-                else:
-                    print(f"   🔊 Adding audio fade-in and fade-out")
+                    print(f"   ⏸️  Adding {additional_pause:.2f}s silence for pause between scenes")
 
                 audio_filter = ",".join(audio_filters)
 
@@ -265,7 +292,6 @@ class VideoService:
                     '-af', audio_filter,
                     '-c:v', 'libx264',
                     '-c:a', 'aac',
-                    '-shortest',
                     '-y',
                     segment_path
                 ]
@@ -335,8 +361,10 @@ class VideoService:
             cumulative_offset = 0.0
 
             with open(master_srt, 'w', encoding='utf-8') as f:
-                for i, (subtitle_text, phonemes, audio_duration) in enumerate(subtitle_data_list):
+                for i, (subtitle_text, phonemes, _passed_duration) in enumerate(subtitle_data_list):
                     segment_duration = segment_durations[i]
+                    # Use ACTUAL probed audio duration, not passed value
+                    audio_duration = actual_audio_durations[i]
 
                     # Calculate subtitle timing for this segment
                     # Start: cumulative_offset + fade_in_duration
@@ -392,8 +420,10 @@ class VideoService:
             drawtext_filters = []
             cumulative_offset = 0.0
 
-            for i, (subtitle_text, phonemes, audio_duration) in enumerate(subtitle_data_list):
+            for i, (subtitle_text, phonemes, _passed_duration) in enumerate(subtitle_data_list):
                 segment_duration = segment_durations[i]
+                # Use ACTUAL probed audio duration, not passed value
+                audio_duration = actual_audio_durations[i]
 
                 # Calculate timing (same as SRT creation)
                 if phonemes and isinstance(phonemes, dict):

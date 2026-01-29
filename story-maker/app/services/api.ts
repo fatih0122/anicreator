@@ -76,6 +76,65 @@ export interface CharacterOption {
   prompt: string;
 }
 
+// Project types
+export interface ProjectScene {
+  id?: string;
+  project_id?: string;
+  scene_number: number;
+  scene_type?: string;
+  script_text?: string;
+  image_prompt?: string;
+  video_prompt?: string;
+  image_url?: string;
+  video_url?: string;
+  narration_url?: string;
+  created_at?: string;
+}
+
+export interface Project {
+  id: string;
+  title?: string;
+  style?: string;
+  themes?: string[];
+  custom_theme?: string;
+  character_name?: string;
+  character_type?: string;
+  personality?: string;
+  character_description?: string;
+  character_image_url?: string;
+  character_creation_method?: 'upload' | 'generate' | null;
+  character_options?: CharacterOption[];
+  character_prompt?: string;
+  selected_character_id?: number | null;
+  scene_count?: number;
+  narration_voice?: string;
+  final_video_url?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  scenes?: ProjectScene[];
+}
+
+export interface ProjectCreate {
+  title?: string;
+  style?: string;
+  themes?: string[];
+  custom_theme?: string;
+  character_name?: string;
+  character_type?: string;
+  personality?: string;
+  character_description?: string;
+  character_image_url?: string;
+  character_creation_method?: 'upload' | 'generate' | null;
+  character_options?: CharacterOption[];
+  character_prompt?: string;
+  selected_character_id?: number | null;
+  scene_count?: number;
+  narration_voice?: string;
+  final_video_url?: string;
+  status?: string;
+}
+
 // ===== API Client =====
 
 export const api = {
@@ -714,6 +773,82 @@ export const api = {
 
     // Poll the job until completion
     return this.pollJobUntilComplete(jobResponse.job_id, onProgress);
+  },
+
+  // ===== Projects API =====
+
+  async createProject(data: ProjectCreate): Promise<{ id: string; status: string; project: Project }> {
+    const response = await fetch(`${API_BASE_URL}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to create project: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async getProjects(): Promise<{ projects: Project[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/projects`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch projects: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async getProject(projectId: string): Promise<{ project: Project }> {
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch project: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async updateProject(projectId: string, data: Partial<ProjectCreate>): Promise<{ id: string; status: string; project: Project }> {
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update project: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async deleteProject(projectId: string): Promise<{ id: string; status: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete project: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async saveScenes(projectId: string, scenes: ProjectScene[]): Promise<{ id: string; status: string; project: Project }> {
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/scenes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenes }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save scenes: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  async updateScene(projectId: string, sceneNumber: number, data: Partial<ProjectScene>): Promise<{ scene_number: number; status: string; scene: ProjectScene }> {
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/scenes/${sceneNumber}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update scene: ${response.statusText}`);
+    }
+    return response.json();
   },
 };
 

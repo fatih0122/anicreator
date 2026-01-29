@@ -11,3 +11,6 @@ Pillow
 boto3
 celery[redis]
 redis
+sqlalchemy[asyncio]
+asyncpg
+greenlet

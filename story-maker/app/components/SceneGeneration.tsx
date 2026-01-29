@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Pause, RefreshCw, Sparkles, CheckCircle2, Loader2, Video, ChevronRight, Download, AlertCircle } from 'lucide-react';
+import { Play, Pause, RefreshCw, Sparkles, CheckCircle2, Loader2, Video, ChevronRight, Download, AlertCircle, Home } from 'lucide-react';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -893,23 +893,26 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
             }));
 
             // Also update context for persistence (only if there are changes)
-            setScenes(currentScenes => {
-              const updatedVideos = currentScenes.map((scene) => {
-                const sceneWithImageIndex = scenesWithImages.findIndex(s => s.id === scene.id);
-                if (sceneWithImageIndex !== -1 && partialVideos[sceneWithImageIndex]) {
-                  return partialVideos[sceneWithImageIndex];
+            // Use setTimeout to defer context update and avoid setState during render
+            setTimeout(() => {
+              setScenes(currentScenes => {
+                const updatedVideos = currentScenes.map((scene) => {
+                  const sceneWithImageIndex = scenesWithImages.findIndex(s => s.id === scene.id);
+                  if (sceneWithImageIndex !== -1 && partialVideos[sceneWithImageIndex]) {
+                    return partialVideos[sceneWithImageIndex];
+                  }
+                  return story.videos[currentScenes.indexOf(scene)] || '';
+                });
+
+                // Only update context if videos actually changed
+                const hasChanges = updatedVideos.some((url, idx) => url !== story.videos[idx]);
+                if (hasChanges) {
+                  story.setVideos(updatedVideos);
                 }
-                return story.videos[currentScenes.indexOf(scene)] || '';
+
+                return currentScenes;
               });
-
-              // Only update context if videos actually changed
-              const hasChanges = updatedVideos.some((url, idx) => url !== story.videos[idx]);
-              if (hasChanges) {
-                story.setVideos(updatedVideos);
-              }
-
-              return currentScenes;
-            });
+            }, 0);
           }
         }
       );
@@ -1305,8 +1308,16 @@ export default function SceneGeneration({ onNext, onBack }: SceneGenerationProps
       <div className="flex-shrink-0 bg-white">
         <div className="max-w-4xl mx-auto px-8 py-4">
           <div className="flex items-center justify-between mb-3">
-            {/* Unicorn + title */}
+            {/* Home button + Unicorn + title */}
             <div className="flex items-center gap-2">
+              <Button
+                onClick={() => router.push('/projects')}
+                variant="ghost"
+                className="p-2 text-[#6D14EC] hover:bg-[#6D14EC]/10 rounded-full"
+                title="내 프로젝트"
+              >
+                <Home className="w-6 h-6" />
+              </Button>
               <UnicornOnly size={60} />
               <div>
                 <h1 className="text-2xl text-[#6D14EC] font-medium">이야기 만들기</h1>

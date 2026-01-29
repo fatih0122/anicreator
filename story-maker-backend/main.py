@@ -21,6 +21,10 @@ from celery_config import celery_app
 from celery import states
 from celery.result import AsyncResult
 
+# Import database and routers
+from app.database import init_db, close_db
+from app.routers.projects import router as projects_router
+
 # --- CONSTANTS ---
 TEMP_VIDEO_DIR = "temp_videos"
 TEMP_UPLOAD_DIR = "temp_uploads"
@@ -201,9 +205,15 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    print("🚀 Starting up...")
+    await init_db()
+    print("✅ Database initialized")
     asyncio.create_task(periodic_cleanup())
     yield
-    # Shutdown (if needed)
+    # Shutdown
+    print("🛑 Shutting down...")
+    await close_db()
+    print("✅ Database connection closed")
 
 app = FastAPI(lifespan=lifespan, title="Story Maker API")
 
@@ -232,6 +242,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(projects_router)
 
 # --- API Endpoints ---
 

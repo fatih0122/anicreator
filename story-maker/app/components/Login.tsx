@@ -43,7 +43,7 @@ export function Login() {
             <BeeLogo />
           </div>
           <h1 className="text-[#6D14EC] mb-3">
-            Stobee에 오신 것을 환영합니다
+            Anicreator에 오신 것을 환영합니다
           </h1>
           <p className="text-gray-600">
             로그인하여 AI 스토리 메이커를 시작하세요

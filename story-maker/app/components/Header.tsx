@@ -3,7 +3,8 @@
 import AnicreatorLogo from "../imports/AnicreatorLogo";
 import { Button } from "./ui/button";
 import { useAuth } from "../context/AuthContext";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, FolderOpen } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface HeaderProps {
   onNavigate: (page: "home" | "login" | "create") => void;
@@ -13,10 +14,15 @@ interface HeaderProps {
 
 export function Header({ onNavigate, showStartOver = false, onStartOver }: HeaderProps) {
   const { isAuthenticated, user, logout } = useAuth();
+  const router = useRouter();
 
   const handleLogout = () => {
     logout();
     onNavigate("home");
+  };
+
+  const handleProjectsClick = () => {
+    router.push('/projects');
   };
 
   return (
@@ -33,6 +39,17 @@ export function Header({ onNavigate, showStartOver = false, onStartOver }: Heade
 
         {/* Right section with buttons */}
         <div className="flex gap-3 items-center">
+          {/* My Projects button */}
+          <Button
+            onClick={handleProjectsClick}
+            variant="ghost"
+            className="bg-white text-[#6D14EC] hover:bg-[#6D14EC] hover:text-white rounded-full px-6 py-2.5 shadow-sm hover:shadow-md transition-all border-2 border-white hover:border-[#6D14EC]"
+            style={{ fontSize: '15px', fontWeight: '600' }}
+          >
+            <FolderOpen className="w-4 h-4 mr-2" />
+            내 프로젝트
+          </Button>
+
           {showStartOver && (
             <Button
               onClick={() => {

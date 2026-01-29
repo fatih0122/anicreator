@@ -7,8 +7,8 @@ export default function App() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect directly to the story creation flow
-    router.replace('/create/start');
+    // Redirect to projects page (home)
+    router.replace('/projects');
   }, [router]);
 
   return (
