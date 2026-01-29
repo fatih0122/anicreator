@@ -83,6 +83,10 @@ interface StoryContextType {
   lastVisitedPage: string;
   setLastVisitedPage: (page: string) => void;
 
+  // Current step tracking (for project resume)
+  currentStep: string;
+  setCurrentStep: (step: string) => void;
+
   // Helper to clear generated content when inputs change
   clearGeneratedContent: () => void;
 
@@ -156,8 +160,14 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   // Navigation tracking
   const [lastVisitedPage, setLastVisitedPage] = useState('/create/start');
 
+  // Current step tracking (for project resume)
+  const [currentStep, setCurrentStep] = useState<string>('style');
+
   // Project persistence
   const [projectId, setProjectId] = useState<string | null>(null);
+
+  // Flag to prevent cascade invalidation during project load
+  const isLoadingProjectRef = useRef(false);
 
   // Helper to clear generated content when inputs change
   const clearGeneratedContent = () => {
@@ -249,7 +259,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   }, [isHydrated]); // Run once after hydration completes - intentionally omit state deps
 
   useEffect(() => {
-    if (!isHydrated) return; // Skip during initial load
+    if (!isHydrated || isLoadingProjectRef.current) return; // Skip during initial load or project load
 
     // Style changed → clear character and all generated content
     if (prevStyleRef.current && prevStyleRef.current !== selectedStyle) {
@@ -264,7 +274,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   }, [selectedStyle, isHydrated]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || isLoadingProjectRef.current) return; // Skip during project load
 
     // Theme changed → clear character and all generated content
     const themesChanged = JSON.stringify(prevThemesRef.current) !== JSON.stringify(selectedThemes);
@@ -299,7 +309,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   }, [selectedThemes, customTheme, isHydrated, characterImageUrl]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || isLoadingProjectRef.current) return; // Skip during project load
 
     // Character creation method changed → clear character options and method-specific data
     if (prevCharacterCreationMethodRef.current !== null && prevCharacterCreationMethodRef.current !== characterCreationMethod) {
@@ -318,7 +328,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   }, [characterCreationMethod, isHydrated]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || isLoadingProjectRef.current) return; // Skip during project load
 
     // Character details changed → clear character options (but keep character creation method)
     const nameChanged = prevCharacterNameRef.current !== characterName;
@@ -355,7 +365,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   }, [characterName, characterType, personality, isHydrated]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || isLoadingProjectRef.current) return; // Skip during project load
 
     // Character changed → clear all story generation
     if (prevCharacterPromptRef.current && prevCharacterPromptRef.current !== characterPrompt) {
@@ -366,7 +376,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   }, [characterPrompt, isHydrated]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || isLoadingProjectRef.current) return; // Skip during project load
 
     // Scene count changed → clear story generation
     if (prevSceneCountRef.current && prevSceneCountRef.current !== sceneCount) {
@@ -535,6 +545,10 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   // Load project data from database
   const loadFromProject = useCallback((project: Project) => {
     console.log('📂 Loading project from database:', project.id);
+
+    // PREVENT cascade invalidation during project load
+    isLoadingProjectRef.current = true;
+
     setProjectId(project.id);
     setSelectedStyle(project.style || '');
     setSelectedThemes(project.themes || []);
@@ -548,6 +562,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     setNarrationVoice(project.narration_voice || 'auto');
     setStoryTitle(project.title || '');
     setFinalVideoUrl(project.final_video_url || '');
+    setCurrentStep(project.current_step || 'style');
 
     // Load scenes
     if (project.scenes && project.scenes.length > 0) {
@@ -625,6 +640,23 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     } else {
       setCharacterCreationStep('method');
     }
+
+    // SYNC refs to loaded values to prevent false invalidation when flag clears
+    prevStyleRef.current = project.style || '';
+    prevThemesRef.current = project.themes || [];
+    prevCustomThemeRef.current = project.custom_theme || '';
+    prevCharacterCreationMethodRef.current = project.character_creation_method || null;
+    prevCharacterNameRef.current = project.character_name || '';
+    prevCharacterTypeRef.current = project.character_type || '';
+    prevPersonalityRef.current = project.personality || '';
+    prevCharacterPromptRef.current = project.character_prompt || '';
+    prevSceneCountRef.current = project.scene_count || 6;
+
+    // RE-ENABLE invalidation after state settles
+    queueMicrotask(() => {
+      isLoadingProjectRef.current = false;
+      console.log('✅ Project loaded, invalidation re-enabled');
+    });
   }, []);
 
   // Save current state to database
@@ -648,6 +680,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         narration_voice: narrationVoice,
         final_video_url: finalVideoUrl,
         status: finalVideoUrl ? 'completed' : 'draft',
+        current_step: currentStep,
       };
 
       let savedProjectId = projectId;
@@ -700,6 +733,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     sceneCount,
     narrationVoice,
     finalVideoUrl,
+    currentStep,
     scenes,
     imagePrompts,
     videoPrompts,
@@ -778,6 +812,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     setStorySignature('');
     setFinalVideoUrl('');
     setLastVisitedPage('/create/start');
+    setCurrentStep('style');
     setProjectId(null);
 
     // Clear localStorage
@@ -845,6 +880,8 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         setFinalVideoUrl,
         lastVisitedPage,
         setLastVisitedPage,
+        currentStep,
+        setCurrentStep,
         clearGeneratedContent,
         forceSave,
         projectId,

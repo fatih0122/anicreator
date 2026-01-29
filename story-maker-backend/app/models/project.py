@@ -27,6 +27,7 @@ class Project(Base):
     narration_voice = Column(String(100), nullable=True)
     final_video_url = Column(Text, nullable=True)
     status = Column(String(20), default="draft")
+    current_step = Column(String(50), default="style")  # style, category, character, scene, final
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -52,6 +53,7 @@ class Project(Base):
             "narration_voice": self.narration_voice,
             "final_video_url": self.final_video_url,
             "status": self.status,
+            "current_step": self.current_step,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "scenes": [scene.to_dict() for scene in self.scenes] if self.scenes else [],

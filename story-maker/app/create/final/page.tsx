@@ -24,10 +24,11 @@ export default function FinalVideoPage() {
 
   const totalDuration = story.scenes.reduce((sum, scene) => sum + (scene.narration_duration || 5), 0);
 
-  // Track this page as the last visited
+  // Track this page as the last visited and current step
   useEffect(() => {
     story.setLastVisitedPage('/create/final');
-  }, [story.setLastVisitedPage]);
+    story.setCurrentStep('final');
+  }, [story.setLastVisitedPage, story.setCurrentStep]);
 
   // Sync finalVideoUrl with context when it changes (after localStorage hydration)
   useEffect(() => {

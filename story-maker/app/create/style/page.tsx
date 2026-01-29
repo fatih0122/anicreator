@@ -9,10 +9,11 @@ export default function StylePage() {
   const router = useRouter();
   const story = useStory();
 
-  // Track this page as the last visited
+  // Track this page as the last visited and current step
   useEffect(() => {
     story.setLastVisitedPage('/create/style');
-  }, [story.setLastVisitedPage]);
+    story.setCurrentStep('style');
+  }, [story.setLastVisitedPage, story.setCurrentStep]);
 
   return (
     <StoryTheme onNext={() => router.push('/create/category')} />

@@ -110,6 +110,7 @@ export interface Project {
   narration_voice?: string;
   final_video_url?: string;
   status?: string;
+  current_step?: 'style' | 'category' | 'character' | 'scene' | 'final';
   created_at?: string;
   updated_at?: string;
   scenes?: ProjectScene[];
@@ -133,6 +134,7 @@ export interface ProjectCreate {
   narration_voice?: string;
   final_video_url?: string;
   status?: string;
+  current_step?: string;
 }
 
 // ===== API Client =====

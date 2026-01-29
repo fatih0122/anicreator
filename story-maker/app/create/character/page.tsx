@@ -9,10 +9,11 @@ export default function CharacterPage() {
   const router = useRouter();
   const story = useStory();
 
-  // Track this page as the last visited
+  // Track this page as the last visited and current step
   useEffect(() => {
     story.setLastVisitedPage('/create/character');
-  }, [story.setLastVisitedPage]);
+    story.setCurrentStep('character');
+  }, [story.setLastVisitedPage, story.setCurrentStep]);
 
   return (
     <CharacterCreation

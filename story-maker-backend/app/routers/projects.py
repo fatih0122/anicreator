@@ -47,6 +47,7 @@ class ProjectCreate(BaseModel):
     narration_voice: Optional[str] = None
     final_video_url: Optional[str] = None
     status: Optional[str] = "draft"
+    current_step: Optional[str] = "style"
 
 
 class ProjectUpdate(BaseModel):
@@ -67,6 +68,7 @@ class ProjectUpdate(BaseModel):
     narration_voice: Optional[str] = None
     final_video_url: Optional[str] = None
     status: Optional[str] = None
+    current_step: Optional[str] = None
 
 
 class ScenesUpdate(BaseModel):
@@ -99,6 +101,7 @@ async def create_project(project: ProjectCreate, db: AsyncSession = Depends(get_
         narration_voice=project.narration_voice,
         final_video_url=project.final_video_url,
         status=project.status,
+        current_step=project.current_step,
     )
     db.add(db_project)
     await db.commit()
@@ -127,6 +130,7 @@ async def create_project(project: ProjectCreate, db: AsyncSession = Depends(get_
             "narration_voice": db_project.narration_voice,
             "final_video_url": db_project.final_video_url,
             "status": db_project.status,
+            "current_step": db_project.current_step,
             "created_at": db_project.created_at.isoformat() if db_project.created_at else None,
             "updated_at": db_project.updated_at.isoformat() if db_project.updated_at else None,
             "scenes": [],

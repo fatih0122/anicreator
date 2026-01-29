@@ -22,10 +22,11 @@ export default function ScenePage() {
   const router = useRouter();
   const story = useStory();
 
-  // Track this page as the last visited
+  // Track this page as the last visited and current step
   useEffect(() => {
     story.setLastVisitedPage('/create/scene');
-  }, [story.setLastVisitedPage]);
+    story.setCurrentStep('scene');
+  }, [story.setLastVisitedPage, story.setCurrentStep]);
 
   return (
     <SceneGeneration
