@@ -84,6 +84,35 @@ class VideoService:
         millis = int((seconds % 1) * 1000)
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
+    def _calculate_tts_speedup(self, text: str) -> float:
+        """
+        Calculate TTS speedup factor based on subtitle text length.
+
+        - < 25 chars: no speedup (1.0x)
+        - 25-35 chars: linear interpolation from 1.02x to 1.10x
+        - > 35 chars: cap at 1.10x
+
+        Args:
+            text: The subtitle text
+        Returns:
+            Speed multiplier (1.0 to 1.10)
+        """
+        char_count = len(text.strip())
+
+        MIN_CHARS = 25
+        MAX_CHARS = 35
+        MIN_SPEED = 1.02
+        MAX_SPEED = 1.10
+
+        if char_count < MIN_CHARS:
+            return 1.0  # No speedup for short text
+        elif char_count > MAX_CHARS:
+            return MAX_SPEED  # Cap at maximum speedup
+        else:
+            # Linear interpolation between MIN_CHARS and MAX_CHARS
+            ratio = (char_count - MIN_CHARS) / (MAX_CHARS - MIN_CHARS)
+            return MIN_SPEED + ratio * (MAX_SPEED - MIN_SPEED)
+
     async def combine_videos_with_narration(
         self,
         video_urls: List[str],
@@ -118,7 +147,7 @@ class VideoService:
             # Define fade transition durations and pause between segments (in seconds)
             FADE_IN_DURATION = 0.5
             FADE_OUT_DURATION = 0.5
-            PAUSE_BETWEEN_SEGMENTS = 1.5  # Pause between segments for natural pacing and breathing room
+            PAUSE_BETWEEN_SEGMENTS = 0.5  # Reduced pause between segments for natural pacing
 
             # Track cumulative time for subtitle timing in final concatenated video
             cumulative_time = 0.0
@@ -197,12 +226,21 @@ class VideoService:
                 # Store actual audio duration for subtitle timing later
                 actual_audio_durations.append(audio_duration)
 
-                # Determine final duration: use longer of video or audio + safety buffer
+                # Calculate TTS speedup based on subtitle text length
+                tts_speedup = self._calculate_tts_speedup(subtitle_text)
+                if tts_speedup > 1.0:
+                    print(f"   🚀 Speeding up TTS by {(tts_speedup-1)*100:.1f}% for {len(subtitle_text.strip())} chars")
+
+                # Calculate effective audio duration after speedup
+                # After atempo filter, effective duration = original / speedup
+                effective_audio_duration = audio_duration / tts_speedup if tts_speedup > 1.0 else audio_duration
+
+                # Determine final duration: use longer of video or effective_audio + safety buffer
                 # This ensures audio has enough time to play completely
                 # IMPORTANT: TTS must NEVER be cut - video must extend to match audio
                 AUDIO_SAFETY_BUFFER = 0.5  # Extra time to ensure audio doesn't get cut off
-                base_duration = max(video_duration, audio_duration + AUDIO_SAFETY_BUFFER)
-                print(f"   📊 Base duration: {base_duration:.2f}s (video={video_duration:.2f}s, audio={audio_duration:.2f}s + {AUDIO_SAFETY_BUFFER}s buffer)")
+                base_duration = max(video_duration, effective_audio_duration + AUDIO_SAFETY_BUFFER)
+                print(f"   📊 Base duration: {base_duration:.2f}s (video={video_duration:.2f}s, effective_audio={effective_audio_duration:.2f}s + {AUDIO_SAFETY_BUFFER}s buffer)")
 
                 # Build video filter chain (NO subtitles - we'll add them to the final concatenated video)
                 video_filters = []
@@ -262,14 +300,20 @@ class VideoService:
                 # Apply audio filters to match video timing
                 #
                 # Logic:
-                # 1. If audio < base_duration: pad audio with silence
+                # 0. If tts_speedup > 1.0: apply atempo filter FIRST to speed up audio
+                # 1. If effective_audio < base_duration: pad audio with silence
                 # 2. Apply gentle fade-in only (NO fade-out - TTS must play completely!)
                 # 3. If additional_pause > 0: add extra silence for pause between scenes
                 audio_filters = []
 
+                # Step 0: Apply TTS speedup FIRST if needed (affects all subsequent timing)
+                if tts_speedup > 1.0:
+                    audio_filters.append(f"atempo={tts_speedup:.4f}")
+
                 # Step 1: Pad audio to match base_duration if it's shorter
-                if audio_duration < base_duration:
-                    pad_to_base = base_duration - audio_duration
+                # Note: After atempo, effective audio duration = audio_duration / tts_speedup
+                if effective_audio_duration < base_duration:
+                    pad_to_base = base_duration - effective_audio_duration
                     audio_filters.append(f"apad=pad_dur={pad_to_base}")
                     print(f"   🔇 Padding audio with {pad_to_base:.2f}s silence to match base duration")
 
